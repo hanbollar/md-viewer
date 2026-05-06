@@ -18,27 +18,65 @@ struct MDViewerApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var filePath: String? = nil
+    private var additionalWindows: [NSWindow] = []
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        if let url = urls.first {
-            filePath = url.path
-            NotificationCenter.default.post(name: .openFile, object: url.path)
+        for (index, url) in urls.enumerated() {
+            let path = url.path
+            if index == 0 {
+                filePath = path
+                NotificationCenter.default.post(name: .openFile, object: path)
+            } else {
+                openNewWindow(for: path)
+            }
         }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let args = CommandLine.arguments
-        if args.count > 1 {
-            let path = args[1]
-            if FileManager.default.fileExists(atPath: path) {
-                filePath = path
-                NotificationCenter.default.post(name: .openFile, object: path)
+        let args = Array(CommandLine.arguments.dropFirst())
+        var isFirst = true
+
+        for arg in args {
+            if FileManager.default.fileExists(atPath: arg) {
+                if isFirst {
+                    filePath = arg
+                    NotificationCenter.default.post(name: .openFile, object: arg)
+                    isFirst = false
+                } else {
+                    openNewWindow(for: arg)
+                }
             }
         }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
+    }
+
+    private func openNewWindow(for path: String) {
+        let contentView = ContentView(filePath: path)
+        let hostingView = NSHostingView(rootView: contentView)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 500),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = hostingView
+        window.title = (path as NSString).lastPathComponent
+        window.center()
+
+        // Offset from last additional window so they don't stack exactly
+        if let lastWindow = additionalWindows.last {
+            var frame = window.frame
+            frame.origin.x = lastWindow.frame.origin.x + 20
+            frame.origin.y = lastWindow.frame.origin.y - 20
+            window.setFrame(frame, display: false)
+        }
+
+        window.makeKeyAndOrderFront(nil)
+        additionalWindows.append(window)
     }
 }
 
